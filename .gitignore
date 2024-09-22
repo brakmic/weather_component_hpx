@@ -1,0 +1,49 @@
+# CMake build directory
+/build/
+/CMakeFiles/
+/CMakeCache.txt
+/cmake_install.cmake
+/Makefile
+
+# IDE specific files (VSCode, etc.)
+.vscode/
+.idea/
+
+# MacOS files
+.DS_Store
+
+# Compiler-generated files
+*.o
+*.obj
+*.so
+*.dylib
+*.a
+*.out
+
+# Cache files
+*.cache
+*.log
+
+# HPX specific logs
+hpx_logs/
+
+# Generated binary files
+/bin/
+/lib/
+/*.exe
+
+# Temporary files
+*~
+*.swp
+*.tmp
+*.log
+
+# Coverage files
+*.gcno
+*.gcda
+*.gcov
+
+# C++ system logs
+hs_err_pid*
+
+third-party
