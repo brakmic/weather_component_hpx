@@ -3,84 +3,67 @@
 #include "weather_component.hpp"
 #include <httplib.h>
 #include <nlohmann/json.hpp>
-#include <sstream>
-#include <iomanip>
+#include <format>
 #include <optional>
 
-// Main method that retrieves weather data for the given coordinates
+// Retrieve weather data for the given coordinates
 std::string weather_component::get_weather(const std::optional<coordinate> &coord_opt)
 {
-  // Check if we received a valid coordinate
-  if (!coord_opt.has_value())
+  // Return error message if no valid coordinate is found
+  const coordinate &coord = coord_opt.value_or(coordinate{});
+  if (!coord_opt)
   {
     return "Error: City could not be resolved to valid coordinates.";
   }
 
-  const coordinate &coord = coord_opt.value(); // Extract coordinate
   httplib::Client cli("https://api.open-meteo.com");
 
+  // Helper lambda for HTTP requests
+  auto get_weather_data = [&](const std::string &path) -> std::optional<nlohmann::json>
+  {
+    if (auto res = cli.Get(path.c_str()); res && res->status == 200)
+    {
+      return nlohmann::json::parse(res->body);
+    }
+    return std::nullopt;
+  };
+
   // First API call: General weather data
-  std::stringstream path;
-  path << "/v1/forecast?latitude=" << std::fixed << std::setprecision(4) << coord.get_latitude()
-       << "&longitude=" << std::fixed << std::setprecision(4) << coord.get_longitude()
-       << "&current_weather=true";
+  std::string path = std::format(
+      "/v1/forecast?latitude={:.4f}&longitude={:.4f}&current_weather=true",
+      coord.get_latitude(), coord.get_longitude());
 
   std::string result;
-
-  if (auto res = cli.Get(path.str().c_str()))
+  if (auto general_weather_data = get_weather_data(path); general_weather_data)
   {
-    if (res->status == 200)
-    {
-      auto data = nlohmann::json::parse(res->body);
+    auto windspeed = (*general_weather_data)["current_weather"]["windspeed"].get<double>();
+    auto temperature = (*general_weather_data)["current_weather"]["temperature"].get<double>();
+    auto winddirection = (*general_weather_data)["current_weather"]["winddirection"].get<double>();
+    auto time = (*general_weather_data)["current_weather"]["time"].get<std::string>();
 
-      double windspeed = data["current_weather"]["windspeed"].get<double>();
-      double temperature = data["current_weather"]["temperature"].get<double>();
-      double winddirection = data["current_weather"]["winddirection"].get<double>();
-      std::string time = data["current_weather"]["time"].get<std::string>();
-
-      std::stringstream weather_info;
-      weather_info << "Time: " << time << "\n"
-                   << "Temperature: " << temperature << " °C\n"
-                   << "Windspeed: " << windspeed << " km/h\n"
-                   << "Wind Direction: " << winddirection << " degrees\n";
-
-      result = weather_info.str();
-    }
+    result = std::format(
+        "Time: {}\nTemperature: {} °C\nWindspeed: {} km/h\nWind Direction: {} degrees\n",
+        time, temperature, windspeed, winddirection);
   }
 
   // Second API call: Additional weather data
-  std::stringstream path2;
-  path2 << "/v1/forecast?latitude=" << std::fixed << std::setprecision(4) << coord.get_latitude()
-        << "&longitude=" << std::fixed << std::setprecision(4) << coord.get_longitude()
-        << "&hourly=relative_humidity_2m,cloud_cover,visibility,pressure_msl";
+  std::string path2 = std::format(
+      "/v1/forecast?latitude={:.4f}&longitude={:.4f}&hourly=relative_humidity_2m,cloud_cover,visibility,pressure_msl",
+      coord.get_latitude(), coord.get_longitude());
 
-  if (auto res2 = cli.Get(path2.str().c_str()))
+  if (auto additional_weather_data = get_weather_data(path2); additional_weather_data)
   {
-    if (res2->status == 200)
-    {
-      auto data2 = nlohmann::json::parse(res2->body);
+    auto humidity = (*additional_weather_data)["hourly"]["relative_humidity_2m"][0].get<double>();
+    auto pressure = (*additional_weather_data)["hourly"]["pressure_msl"][0].get<double>();
+    auto cloudcover = (*additional_weather_data)["hourly"]["cloud_cover"][0].get<double>();
+    auto visibility = (*additional_weather_data)["hourly"]["visibility"][0].get<double>();
 
-      double humidity = data2["hourly"]["relative_humidity_2m"][0].get<double>();
-      double pressure = data2["hourly"]["pressure_msl"][0].get<double>();
-      double cloudcover = data2["hourly"]["cloud_cover"][0].get<double>();
-      double visibility = data2["hourly"]["visibility"][0].get<double>();
-
-      std::stringstream extra_info;
-      extra_info << "Humidity: " << humidity << "%\n"
-                 << "Pressure: " << pressure << " hPa\n"
-                 << "Cloud Cover: " << cloudcover << "%\n"
-                 << "Visibility: " << visibility << " km";
-
-      result += extra_info.str();
-    }
+    result += std::format(
+        "Humidity: {}%\nPressure: {} hPa\nCloud Cover: {}%\nVisibility: {} km",
+        humidity, pressure, cloudcover, visibility);
   }
 
-  if (result.empty())
-  {
-    return "Failed to retrieve weather data.";
-  }
-
-  return result;
+  return result.empty() ? "Failed to retrieve weather data." : result;
 }
 
 typedef hpx::components::component<weather_component> weather_component_type;
