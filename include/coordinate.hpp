@@ -3,7 +3,7 @@
 
 #include <hpx/serialization/serialize.hpp>
 
-struct coordinate
+class coordinate
 {
 private:
   double lat;
