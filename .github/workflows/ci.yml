@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+
+      - name: Build the demo
+        run: |
+          docker run --rm \
+            -v "${GITHUB_WORKSPACE}:/src:ro" \
+            brakmic/hpx-builder:1.11.0 \
+            bash -lc '
+              cp -a /src /tmp/app
+              cmake -S /tmp/app -B /tmp/app/build \
+                -DCMAKE_PREFIX_PATH=/usr/local/hpx
+              cmake --build /tmp/app/build --parallel 2
+              test -x /tmp/app/build/weather_component
+            '
