@@ -1,5 +1,7 @@
 # Weather Component HPX
 
+![CI](https://github.com/brakmic/weather_component_hpx/actions/workflows/ci.yml/badge.svg)
+
 This project is an [HPX](https://hpx-docs.stellar-group.org/latest/html/index.html)-based C++ application that retrieves weather data for a given city using two APIs:
 1. **City Resolution API ([Nominatim OpenStreetMap](https://nominatim.openstreetmap.org/))**: Resolves the city name to geographic coordinates (latitude and longitude).
 2. **Weather Data API ([Open-Meteo](https://open-meteo.com/))**: Retrieves weather data for the provided coordinates, including windspeed, temperature, humidity, pressure, and more.
@@ -38,7 +40,8 @@ This project depends on the following libraries:
 - **cpp-httplib**: A lightweight C++ HTTP/HTTPS library (added as a git submodule).
 - **nlohmann/json**: A header-only JSON library for C++ (added as a git submodule).
 - **OpenSSL**: For SSL/TLS support in the HTTP client.
-- **TBB**: Threading Building Blocks (required for HPX).
+
+The HPX builder image provides HPX 1.11.0, OpenSSL, GCC 13, and CMake 3.28. The two submodules are committed as gitlinks; initialize them after cloning.
 
 ### Cloning the Repository
 
@@ -51,50 +54,46 @@ git clone --recurse-submodules https://github.com/brakmic/weather_component_hpx.
 If you already cloned the repository without the submodules, you can initialize and update them with:
 
 ```bash
-git submodule init
-git submodule update
+git submodule update --init --recursive
 ```
 
 ### Build Instructions
 
-Ensure that you have CMake and a C++23-compatible compiler installed. The project uses HPX and requires OpenSSL for secure HTTP requests.
-
-#### Step 1: Install Dependencies
-Make sure to have the following installed on your system:
-- **HPX**: Install it via your package manager or build it from source.
-- **OpenSSL**: Required for HTTPS support.
-- **TBB**: Required by HPX (on macOS, it is expected to be installed via Homebrew).
-
-#### Step 2: Configure and Build
-To build the project, follow these steps:
-
-1. **Create a build directory**:
-   ```bash
-   mkdir build && cd build
-   ```
-
-2. **Run CMake**:
-   ```bash
-   cmake ..
-   ```
-
-3. **Compile the project**:
-   ```bash
-   make -j$(nproc)
-   ```
-
-#### Step 3: Running the Application
-
-Once the project is compiled, you can run the `weather_component` executable by providing a city name as a command-line argument:
+Submodules must be present before building. Build inside the builder image:
 
 ```bash
-./weather_component <city_name>
+docker run --rm -it -v "$PWD:/src" brakmic/hpx-builder:1.11.0 /bin/bash
+```
+
+Inside the container:
+
+```bash
+cmake -S /src -B /src/build -DCMAKE_PREFIX_PATH=/usr/local/hpx
+cmake --build /src/build --parallel 2
+```
+
+A one-shot build:
+
+```bash
+docker run --rm -v "$PWD:/src:ro" brakmic/hpx-builder:1.11.0 bash -lc '
+  cp -a /src /tmp/app
+  cmake -S /tmp/app -B /tmp/app/build -DCMAKE_PREFIX_PATH=/usr/local/hpx
+  cmake --build /tmp/app/build --parallel 2
+'
+```
+
+#### Running the Application
+
+The application calls the OpenStreetMap Nominatim and Open-Meteo APIs, so the run needs network access. CI builds the application but does not run it.
+
+```bash
+/src/build/weather_component <city_name>
 ```
 
 For example:
 
 ```bash
-./weather_component "Bonn"
+/src/build/weather_component "Bonn"
 ```
 
 If the city is resolved successfully, the weather data for that city will be retrieved and displayed. If the city cannot be resolved (e.g., for invalid or non-existent city names), an error message will be returned.
